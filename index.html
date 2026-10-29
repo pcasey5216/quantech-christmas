@@ -156,26 +156,62 @@ function resultsText(){
  ].join('\n');
 }
 function shareStatus(text){const node=$('shareStatus');if(node)node.textContent=text}
-async function copyResults(){
- const text=resultsText();
- try{if(!navigator.clipboard||!navigator.clipboard.writeText)throw new Error('Clipboard unavailable');await navigator.clipboard.writeText(text);shareStatus('Results copied! Paste them into a message to your host.');return}catch(e){}
- const box=$('shareText');box.value=text;box.hidden=false;box.focus();box.select();
- shareStatus('Select and copy the results below, then paste them into a message to your host.');
+
+function scorecardCanvas(){
+ const c=document.createElement('canvas');c.width=1000;c.height=1220;
+ const x=c.getContext('2d'),s=stats(),name=($('playerName')?.value||'').trim().slice(0,40);
+ function box(a,b,w,h,color,r=20){x.fillStyle=color;x.beginPath();x.roundRect(a,b,w,h,r);x.fill()}
+ function label(t,a,b,size,color='#152d4b',font='Arial',align='left'){x.fillStyle=color;x.font=`${size}px ${font}`;x.textAlign=align;x.fillText(t,a,b,880)}
+ x.fillStyle='#f9f5eb';x.fillRect(0,0,1000,1220);
+ box(0,0,1000,280,'#142b48',0);
+ // Festive baubles, drawn locally so the image works offline.
+ ['#ba343e','#e5be6a','#43765d'].forEach((color,i)=>{const a=785+i*75,b=72+(i%2)*55;x.strokeStyle='#e5be6a';x.beginPath();x.moveTo(a,0);x.lineTo(a,b);x.stroke();x.fillStyle=color;x.beginPath();x.arc(a,b+24,28,0,Math.PI*2);x.fill();label('✦',a,b+33,26,'#fff1cc','Arial','center')});
+ label('QUANTECH × CHRISTMAS',60,63,24,'#e5be6a');
+ label('The Merry Estimate',60,140,57,'#fff9ea','Georgia');
+ label(s.completed===11?'SLEIGHED THE FLIGHT.':'STILL UNWRAPPING.',60,193,23,'#e5be6a');
+ label(name||'My holiday scorecard',60,243,28,'#fff9ea');
+ box(60,315,880,160,'#e7eddf');
+ label(`${s.boardsWon+s.wordsWon} / 11`,500,396,68,'#235542','Georgia','center');
+ label(`PUZZLES SOLVED  ·  ${s.completed} / 11 FINISHED`,500,443,23,'#235542','Arial','center');
+ label('CONNECTIONS',60,530,25);
+ label(`${s.boardsWon}/3 boards  ·  ${s.groups}/12 groups`,940,530,23,'#53665e','Arial','right');
+ const colors=['#eed889','#bbd1a0','#adc8df','#cfb7dc'];
+ data.c.forEach((st,i)=>{const y=565+i*67;label(`Board ${i+1}`,60,y+32,24);for(let g=0;g<4;g++)box(215+g*54,y,42,42,g<st.solved.length?colors[st.solved[g]]:'#e0dfd6',8);label(`${st.mistakes} ${st.mistakes===1?'mistake':'mistakes'}${boardDone(i)?(st.solved.length===4?' · solved':' · revealed'):' · unfinished'}`,480,y+30,22,'#53665e')});
+ label('FIVE-LETTER FORECAST',60,817,25);
+ label(`${s.wordsWon}/8 words solved`,940,817,23,'#53665e','Arial','right');
+ data.w.forEach((st,i)=>{const a=60+i*112;box(a,848,96,105,wordWon(i)?'#43765d':wordDone(i)?'#a9444e':'#e7e5db',12);const color=wordDone(i)?'#ffffff':'#53665e';label(`WORD ${i+1}`,a+48,876,14,color,'Arial','center');label(wordWon(i)?`${st.guesses.length}/6`:wordDone(i)?'X/6':'—',a+48,924,33,color,'Arial','center')});
+ label(`${s.mistakes} Connections ${s.mistakes===1?'mistake':'mistakes'}  ·  ${s.guesses} word ${s.guesses===1?'guess':'guesses'}  ·  ${s.hints} ${s.hints===1?'hint':'hints'}`,500,1007,23,'#53665e','Arial','center');
+ label('Merry holidays. Defensible estimates.',500,1085,33,'#a92f3b','Georgia','center');
+ label('Current run · Revealed answers are not counted as solved',500,1137,18,'#53665e','Arial','center');
+ label('pcasey5216.github.io/quantech-christmas',500,1177,18,'#53665e','Arial','center');
+ return c;
 }
-async function shareResults(){
- if(typeof navigator.share==='function'){
-  try{await navigator.share({title:'My Quantech Christmas results',text:resultsText()});shareStatus('Share menu closed. You can also copy your results below.');return}
-  catch(e){if(e.name==='AbortError'){shareStatus('Sharing canceled. Your results are still here.');return}}
- }
- await copyResults();
+function scorecardBlob(){return new Promise((resolve,reject)=>scorecardCanvas().toBlob(b=>b?resolve(b):reject(Error('Image unavailable')),'image/png'))}
+function previewScorecard(){const img=$('scorecardPreview');if(img)img.src=scorecardCanvas().toDataURL('image/png')}
+async function copyResults(){
+ try{
+  if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw Error('Image copy unavailable');
+  await navigator.clipboard.write([new ClipboardItem({'image/png':scorecardBlob()})]);
+  shareStatus('Scorecard image copied! Open Google Chat, find pcasey@quantechserv.com, and paste it into your message.');
+ }catch(e){shareStatus('This browser could not copy the image. Use Download image, then attach it in Google Chat. You can also press and hold the preview to save it.')}
+}
+async function downloadScorecard(){
+ try{const blob=await scorecardBlob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Quantech-Christmas-Scorecard.png';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);shareStatus('Image ready to save. Attach it to your message to pcasey@quantechserv.com.')}
+ catch(e){shareStatus('Could not prepare the download. Try saving the preview image below.')}
+}
+function shareResults(){
+ window.open('https://chat.google.com/','_blank','noopener,noreferrer');
+ shareStatus('In Google Chat, choose New chat and enter pcasey@quantechserv.com. Paste the copied scorecard or attach your downloaded image, then send.');
 }
 
 function renderResults(){
  const s=stats(),finished=s.completed===11,solved=s.boardsWon+s.wordsWon;
  const connRows=boards.map((b,i)=>{const st=data.c[i],done=boardDone(i);const status=st.solved.length===4?'Solved':done?'Finished · revealed':st.solved.length||st.mistakes?'In progress':'Not started';return `<tr><th scope="row"><button class="resultLink" onclick="gotoIndex(${i})">${i+1}. ${esc(b.name)}</button></th><td>${status}</td><td>${st.solved.length}/4</td><td>${st.mistakes}/4</td></tr>`}).join('');
  const wordCards=words.map((w,i)=>{const st=data.w[i],done=wordDone(i);return `<button class="wordResult ${wordWon(i)?'resultWon':done?'resultLost':''}" onclick="gotoIndex(${i+3})"><span>WORD ${i+1}</span><strong>${done?w[0]:'?????'}</strong><span>${wordWon(i)?'Solved · '+st.guesses.length+'/6':done?'Revealed · 6/6':st.guesses.length?'In progress · '+st.guesses.length+'/6':'Not started'}</span><small>${st.hintUsed?'Definition hint used':done?'No hint used':'Hint not used'}</small></button>`}).join('');
- $('resultsPanel').innerHTML=`<div id="finaleConfetti" class="confetti" aria-hidden="true"></div><div class="finaleHero"><div class="eyebrow">QUANTECH × CHRISTMAS · ${finished?'THE GRAND FINALE':'YOUR SCORECARD'}</div><div class="finaleIcon" aria-hidden="true">${finished?'🏆':'🎄'}</div><h2 id="resultsTitle">${finished?'That’s a wrap!':'More gifts to unwrap.'}</h2><p>${finished?`All 11 puzzles finished. You solved ${solved} of them.<br>May your holidays be merry and your estimates defensible.`:`${s.completed} of 11 puzzles finished. ${11-s.completed} still waiting under the tree.<br>Your results so far are saved below.`}</p></div><div class="resultStats"><div><strong>${s.boardsWon}<small>/3</small></strong><span>Connections boards solved</span></div><div><strong>${s.wordsWon}<small>/8</small></strong><span>Word puzzles solved</span></div><div><strong>${s.groups}<small>/12</small></strong><span>Connections groups found</span></div></div><p class="resultTotals">${s.mistakes} Connections ${s.mistakes===1?'mistake':'mistakes'} · ${s.guesses} word ${s.guesses===1?'guess':'guesses'} · ${s.hints} word ${s.hints===1?'hint':'hints'} used</p><div class="actions"><button class="primary" onclick="shareResults()">Share Results ↗</button><button onclick="copyResults()">Copy results</button></div><p class="muted" style="text-align:center">Send your scorecard to the host. Shared results never include puzzle answers.</p><p id="shareStatus" class="message" role="status" aria-live="polite"></p><textarea id="shareText" hidden readonly aria-label="Results to copy" style="width:100%;min-height:240px;font:14px/1.6 system-ui;padding:12px"></textarea><h3>Your Connections results</h3><div class="resultsTable"><table><thead><tr><th scope="col">Board</th><th scope="col">Result</th><th scope="col">Groups</th><th scope="col">Mistakes</th></tr></thead><tbody>${connRows}</tbody></table></div><h3>Your word results</h3><div class="wordResults">${wordCards}</div><p class="muted scoreNote">Revealed answers count as finished, not solved. Hints are recorded separately. Results reflect the current run; restarting a puzzle replaces that result. Select any puzzle above to review it.</p><div class="actions">${finished?'<button class="primary" onclick="tossConfetti(\'finaleConfetti\')">One more cheer! ✨</button>':'<button class="primary" onclick="resumeUnfinished()">Continue unfinished puzzles →</button>'}<button onclick="resetAll()">Start a new party run</button></div>`;
+ $('resultsPanel').innerHTML=`<div id="finaleConfetti" class="confetti" aria-hidden="true"></div><div class="finaleHero"><div class="eyebrow">QUANTECH × CHRISTMAS · ${finished?'THE GRAND FINALE':'YOUR SCORECARD'}</div><div class="finaleIcon" aria-hidden="true">${finished?'🏆':'🎄'}</div><h2 id="resultsTitle">${finished?'That’s a wrap!':'More gifts to unwrap.'}</h2><p>${finished?`All 11 puzzles finished. You solved ${solved} of them.<br>May your holidays be merry and your estimates defensible.`:`${s.completed} of 11 puzzles finished. ${11-s.completed} still waiting under the tree.<br>Your results so far are saved below.`}</p></div><div class="resultStats"><div><strong>${s.boardsWon}<small>/3</small></strong><span>Connections boards solved</span></div><div><strong>${s.wordsWon}<small>/8</small></strong><span>Word puzzles solved</span></div><div><strong>${s.groups}<small>/12</small></strong><span>Connections groups found</span></div></div><p class="resultTotals">${s.mistakes} Connections ${s.mistakes===1?'mistake':'mistakes'} · ${s.guesses} word ${s.guesses===1?'guess':'guesses'} · ${s.hints} word ${s.hints===1?'hint':'hints'} used</p><h3>Send a little holiday brag</h3><p class="muted">Copy or download your scorecard, then send it to <strong>pcasey@quantechserv.com</strong> in Google Chat.</p><label for="playerName" class="muted">Your name (optional, included on the image)</label><input id="playerName" maxlength="40" placeholder="Name or team name" oninput="previewScorecard()" style="display:block;width:100%;max-width:440px;padding:12px;margin:8px 0 16px;border:1px solid #b3bfb6;border-radius:8px;font:inherit"><div class="actions"><button class="primary" onclick="copyResults()">Copy scorecard image</button><button onclick="downloadScorecard()">Download image</button><button onclick="shareResults()">Open Google Chat ↗</button></div><p id="shareStatus" class="message" role="status" aria-live="polite"></p><details><summary>Preview your shareable scorecard</summary><img id="scorecardPreview" alt="Your current puzzle results as a festive scorecard, without answer spoilers" style="display:block;width:100%;max-width:500px;height:auto;margin:18px auto;border-radius:12px"></details><h3>Your Connections results</h3><div class="resultsTable"><table><thead><tr><th scope="col">Board</th><th scope="col">Result</th><th scope="col">Groups</th><th scope="col">Mistakes</th></tr></thead><tbody>${connRows}</tbody></table></div><h3>Your word results</h3><div class="wordResults">${wordCards}</div><p class="muted scoreNote">Revealed answers count as finished, not solved. Hints are recorded separately. Results reflect the current run; restarting a puzzle replaces that result. Select any puzzle above to review it.</p><div class="actions">${finished?'<button class="primary" onclick="tossConfetti(\'finaleConfetti\')">One more cheer! ✨</button>':'<button class="primary" onclick="resumeUnfinished()">Continue unfinished puzzles →</button>'}<button onclick="resetAll()">Start a new party run</button></div>`;
+ previewScorecard();
 }
 render();storageNote();
 
 </script></body></html>
+
